@@ -1,0 +1,97 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ShaderCalc
+
+struct OneAtomsPos
+{
+    float Atom_x;
+    float Atom_y;
+    float Atom_z;
+};
+
+struct TwoAtomsPos
+{
+    float Atom1_x;
+    float Atom1_y;
+    float Atom1_z;
+
+    float Atom2_x;
+    float Atom2_y;
+    float Atom2_z;
+};
+
+struct ResultStruct
+{
+    float Atom_x;
+    float Atom_y;
+    float Atom_z;
+    float energy;
+};
+
+RWStructuredBuffer<TwoAtomsPos> PosIncrementArr;
+RWStructuredBuffer<OneAtomsPos> DepositedPosArr;
+RWStructuredBuffer<float> Atom0_1_2_coords;
+RWStructuredBuffer<float> Atom1_1_coords;
+RWStructuredBuffer<float> Atom1_2_coords;
+RWStructuredBuffer<float> Atom1_3_coords;
+RWStructuredBuffer<float> Atom2_1_coords;
+RWStructuredBuffer<float> Atom2_2_coords;
+RWStructuredBuffer<float> Atom2_3_coords;
+RWStructuredBuffer<float> parameters;
+RWStructuredBuffer<ResultStruct> result;
+
+[numthreads(1000,1,1)]
+void ShaderCalc (uint3 id : SV_DispatchThreadID)
+{
+    float atom0_x, atom0_y, atom0_z, dist0_1, dist0_2, energy0_1, energy0_2, curEnergy0;
+    float minEnergy0 = 99999999;
+
+    float atom1_x = Atom0_1_2_coords[3] + PosIncrementArr[id.x].Atom1_x;
+    float atom1_y = Atom0_1_2_coords[4] + PosIncrementArr[id.x].Atom1_y;
+    float atom1_z = Atom0_1_2_coords[5] + PosIncrementArr[id.x].Atom1_z;
+
+    float atom2_x = Atom0_1_2_coords[6] + PosIncrementArr[id.x].Atom2_x;
+    float atom2_y = Atom0_1_2_coords[7] + PosIncrementArr[id.x].Atom2_y;
+    float atom2_z = Atom0_1_2_coords[8] + PosIncrementArr[id.x].Atom2_z;
+
+    float dist1_1 = sqrt(pow((atom1_x - Atom1_1_coords[0]), 2) + pow((atom1_y - Atom1_1_coords[1]), 2) + pow((atom1_z - Atom1_1_coords[2]), 2));
+    float dist1_2 = sqrt(pow((atom1_x - Atom1_2_coords[0]), 2) + pow((atom1_y - Atom1_2_coords[1]), 2) + pow((atom1_z - Atom1_2_coords[2]), 2));
+    //float dist1_3 = sqrt(pow((atom1_x - Atom1_3_coords[0]), 2) + pow((atom1_y - Atom1_3_coords[1]), 2) + pow((atom1_z - Atom1_3_coords[2]), 2));
+
+    float dist2_1 = sqrt(pow((atom2_x - Atom2_1_coords[0]), 2) + pow((atom2_y - Atom2_1_coords[1]), 2) + pow((atom2_z - Atom2_1_coords[2]), 2));
+    float dist2_2 = sqrt(pow((atom2_x - Atom2_2_coords[0]), 2) + pow((atom2_y - Atom2_2_coords[1]), 2) + pow((atom2_z - Atom2_2_coords[2]), 2));
+    //float dist2_3 = sqrt(pow((atom2_x - Atom2_3_coords[0]), 2) + pow((atom2_y - Atom2_3_coords[1]), 2) + pow((atom2_z - Atom2_3_coords[2]), 2));
+
+    float energy1_1 = abs(pow((dist1_1 / 2.39578), 12) - pow((dist1_1 / 2.39578), 6));
+    float energy1_2 = abs(pow((dist1_2 / 2.39578), 12) - pow((dist1_2 / 2.39578), 6));
+    //float energy1_3 = pow((dist1_3 / 1.97), 12) - pow((dist1_3 / 1.97), 6);
+
+    float energy2_1 = abs(pow((dist2_1 / 2.39578), 12) - pow((dist2_1 / 2.39578), 6));
+    float energy2_2 = abs(pow((dist2_2 / 2.39578), 12) - pow((dist2_2 / 2.39578), 6));
+    //float energy2_3 = pow((dist2_3 / 1.97), 12) - pow((dist2_3 / 1.97), 6);
+
+    uint numStructs, stride;
+    DepositedPosArr.GetDimensions(numStructs, stride);
+
+    for (int i = 0; i < numStructs; i++)
+    {
+        atom0_x = DepositedPosArr[i].Atom_x;
+        atom0_y = DepositedPosArr[i].Atom_y;
+        atom0_z = DepositedPosArr[i].Atom_z;
+
+        dist0_1 = sqrt(pow((atom0_x - atom1_x), 2) + pow((atom0_y - atom1_y), 2) + pow((atom0_z - atom1_z), 2));
+        dist0_2 = sqrt(pow((atom0_x - atom2_x), 2) + pow((atom0_y - atom2_y), 2) + pow((atom0_z - atom2_z), 2));
+
+        energy0_1 = abs(pow((dist0_1 / 2.39578), 12) - pow((dist0_1 / 2.39578), 6));
+        energy0_2 = abs(pow((dist0_2 / 2.39578), 12) - pow((dist0_2 / 2.39578), 6));
+
+        curEnergy0 = energy0_1 + energy0_2;
+        if (curEnergy0 < minEnergy0)
+        {
+            result[id.x].Atom_x = atom0_x;
+            result[id.x].Atom_y = atom0_y;
+            result[id.x].Atom_z = atom0_z;
+            result[id.x].energy = curEnergy0 + energy1_1 + energy1_2 + energy2_1 + energy2_2;
+            minEnergy0 = curEnergy0;
+        }
+    }
+}
